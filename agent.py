@@ -24,7 +24,7 @@ vectorstore = PGVector(
     collection_name=COLLECTION,
     connection=CONNECTION,
 )
-retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
+retriever = vectorstore.as_retriever(search_kwargs={"k": 5})
 
 
 @tool
