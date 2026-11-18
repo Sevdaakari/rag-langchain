@@ -13,7 +13,7 @@ LangGraph's create_react_agent provides the reason -> act -> observe loop.
 
 from langchain_core.tools import tool
 from langchain_postgres import PGVector
-from langgraph.prebuilt import create_react_agent
+from langchain.agents import create_agent
 
 from config import get_models, CONNECTION, COLLECTION
 
@@ -29,17 +29,18 @@ retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
 
 @tool
 def search_docs(query: str) -> str:
-    """Search the mining-safety knowledge base and return relevant passages.
-    Use this whenever the question needs facts from the documents."""
+    """Search the mining-safety knowledge base and return relevant passages."""
     docs = retriever.invoke(query)
-    return "\n\n".join(d.page_content for d in docs)
+    result = "\n\n".join(d.page_content for d in docs)
+    print(f"\n--- RETRIEVED ---\n{result}\n--- END ---\n")   # debug line
+    return result
 
 
 # The agent: a model + its tools + the built-in reason/act loop.
-agent = create_react_agent(
+agent = create_agent(
     model,
     tools=[search_docs],
-    prompt="You answer questions about mining safety. Use the search_docs tool "
+    system_prompt="You answer questions about mining safety. Use the search_docs tool "
            "to look things up, and answer based on what it returns. If the tool "
            "has no answer, say you don't know.",
 )
