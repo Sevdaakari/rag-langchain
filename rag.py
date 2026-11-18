@@ -22,7 +22,7 @@ vectorstore = PGVector(
     collection_name=COLLECTION,
     connection=CONNECTION,
 )
-retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
+retriever = vectorstore.as_retriever(search_kwargs={"k": 6})
 
 # Same "answer only from context" prompt as generate.py.
 prompt = ChatPromptTemplate.from_template(
