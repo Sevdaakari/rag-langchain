@@ -1,5 +1,6 @@
 langchain-core
 langchain-community
+langgraph
 langchain-text-splitters
 langchain-ollama
 langchain-google-genai
