@@ -1,62 +1,47 @@
 # rag-langchain
 
-The same local RAG agent as [rag-from-scratch](https://github.com/Sevdaakari/rag-from-scratch),
-rebuilt on **LangChain** with a **pgvector** (Postgres) store and a **swappable LLM**
-(local Ollama ↔ Gemini API) — to show what the framework abstracts away.
+The same RAG agent as my [rag-from-scratch](https://github.com/Sevdaakari/rag-from-scratch) project, rebuilt on LangChain. I built the first one without a framework to learn the internals; this one shows how much LangChain takes off your hands — the hand-written cosine search and prompt plumbing collapse into a few lines.
 
-## What changed vs from-scratch
+Ask questions in the terminal about a folder of documents (I used US mining-safety publications). It retrieves the most relevant chunks and answers only from those.
 
-| from-scratch                     | this repo                                      |
-| -------------------------------- | ---------------------------------------------- |
-| manual `docs/*.txt` read          | `DirectoryLoader` + `TextLoader`               |
-| `chunking.py` (tiktoken 200/40)   | `TokenTextSplitter(200, 40)`                   |
-| `embedding.py`                    | `OllamaEmbeddings` / `GoogleGenerativeAIEmbeddings` |
-| `vector_store.py` (numpy cosine)  | **pgvector** via `PGVector`                    |
-| `persistence.py` (disk cache)     | pgvector persists in Postgres (no re-embed)    |
-| `search(..., top_k=3)`            | `vectorstore.as_retriever(k=3)`                |
-| `generate.py` prompt + qwen2      | `ChatPromptTemplate \| chat_model \| StrOutputParser` |
+It comes in two versions:
+
+- **`rag.py` — a chain.** Fixed flow: it always retrieves, then answers. Simple and predictable.
+- **`agent.py` — an agent (LangGraph).** Retrieval is a tool the model decides when to call. It can skip retrieval for small talk, or search when a question needs the docs.
+
+Two other changes from the first version:
+
+- Vectors are stored in **pgvector** (Postgres), so they persist and aren't re-embedded on every run.
+- The model is **swappable** — local Ollama by default, or the Gemini API by changing one setting. Neither version's logic changes when you swap.
 
 ## Files
 
-- `config.py` — **the swappable part.** Picks model + embeddings from `PROVIDER`.
-- `ingest.py` — Phase 1: load → split → embed → store in pgvector. Run once.
-- `rag.py` — Phase 2: retrieve + the RAG chain + chat loop.
-- `docker-compose.yml` — Postgres with pgvector.
+- `config.py` — picks the model/embeddings from `PROVIDER`. Switch providers here.
+- `ingest.py` — load, split, embed, store. Run once.
+- `rag.py` — the chain version.
+- `agent.py` — the agent version (LangGraph).
+- `docker-compose.yml` — Postgres + pgvector.
 
-## Setup
+## LangChain vs LangGraph
+
+LangChain gives the building blocks and simple pipelines (`prompt | model | parser`) — good for a fixed flow. LangGraph adds the loop an agent needs, where the model decides whether to call a tool, maybe more than once, before answering. So `agent.py` uses LangGraph on top of LangChain: LangChain provides the model and the tool, LangGraph runs the reason-act loop.
+
+## Run
 
 ```bash
-# 1. Start Postgres + pgvector
 docker compose up -d
-
-# 2. Install deps
+python3 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
-
-# 3. Configure
-cp .env.example .env         # set PROVIDER=ollama or gemini (+ GOOGLE_API_KEY if gemini)
-
-# 4. Index the docs (once), then chat
-python ingest.py
-python rag.py
+cp .env.example .env        # set PROVIDER (+ Gemini key if used)
+python ingest.py            # index once
+python rag.py               # the chain
+python agent.py             # the agent
 ```
 
-For `PROVIDER=ollama`, pull the models first: `ollama pull qwen2:7b` and
-`ollama pull nomic-embed-text`. For `PROVIDER=gemini`, get a free key at
-https://aistudio.google.com/apikey.
+For Ollama: `ollama pull qwen2:7b` and `ollama pull nomic-embed-text`. For Gemini: a free key from Google AI Studio.
 
-## The one thing to understand (and say in an interview)
+## Notes
 
-Swapping the **chat model** (Ollama ↔ Gemini) is free — the chain, the retriever,
-the prompt all stay identical, because LangChain hides each model behind the same
-interface. That's abstraction in action.
+Swapping the chat model is free. Swapping the embedding model isn't — different models produce incompatible vector spaces, so you must re-run `ingest.py`. The two sets of vectors live in separate collections so they don't mix.
 
-But swapping the **embedding model** is NOT free: different embedding models produce
-**different, incompatible vector spaces**, so you must **re-index** (`python ingest.py`)
-after switching providers. That's why the collection name is namespaced per provider
-in `config.py` (`rag_docs_ollama` vs `rag_docs_gemini`) — the two vector sets never mix.
-
-## Scope
-
-A straight RAG **chain** (fixed retrieve → generate), not an agent loop. The
-from-scratch version's query-rewrite / context-sufficiency step is left out here;
-turning retrieval into a tool the model calls would be the LangGraph (agent) version.
+The agent needs a model that supports tool calling (`qwen2:7b` and Gemini both do).
