@@ -55,4 +55,4 @@ if __name__ == "__main__":
             continue
         result = agent.invoke({"messages": [("human", question)]})
         # The final message in the list is the agent's answer.
-        print(f"\nBot: {result['messages'][-1].content}\n")
+        print(f"\nAgent: {result['messages'][-1].content}\n")
